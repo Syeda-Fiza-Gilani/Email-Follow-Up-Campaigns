@@ -10,6 +10,9 @@ Send a sequence of emails to a list of contacts and let n8n do the chasing. The 
 - Stops automatically for any thread where a human has replied
 - Personalises every message with `{placeholders}` taken from your sheet columns
 - Skips weekends
+- 
+<img width="1215" height="749" alt="image" src="https://github.com/user-attachments/assets/48b3ffdb-e4fb-4c3d-8f43-7563eae63742" />
+
 
 ## How it works
 
