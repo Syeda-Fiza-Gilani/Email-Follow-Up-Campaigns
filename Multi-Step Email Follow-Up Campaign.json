@@ -1,0 +1,921 @@
+{
+  "name": "Multi-step email follow-up campaign (Gmail + Google Sheets)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtMinute": 12
+            }
+          ]
+        }
+      },
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1248,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "weekend-check",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              },
+              "leftValue": "={{ $now.isWeekend() }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Don't email on weekends",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "sheet_url",
+              "type": "string",
+              "value": "YOUR_GOOGLE_SHEET_URL"
+            },
+            {
+              "id": "s2",
+              "name": "subject",
+              "type": "string",
+              "value": "My amazing campaign"
+            },
+            {
+              "id": "s3",
+              "name": "sender_name",
+              "type": "string",
+              "value": "Your Name"
+            },
+            {
+              "id": "s4",
+              "name": "email_column_name",
+              "type": "string",
+              "value": "email"
+            },
+            {
+              "id": "s5",
+              "name": "mail_id",
+              "type": "string",
+              "value": "campaign-001"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        -816,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"emails\": [\n    {\n      \"message\": \"Hi {name}, hope you're well!<br />\\n<br />\\nYou're doing some great things at {company}, and I wanted to touch base to see if you wanted to chat.<br />\\n<br />\\nWould it make sense to jump on a quick call?<br />\\n<br />\\nRegards,<br />\\n<br />\\nNathan<br />\\n\",\n      \"send_on_day\": 0\n    },\n    {\n      \"message\": \"Hi {name},<br />\\n<br />\\nJust wanted to follow up on this, since it would be great to talk.<br />\\n<br />\\nRegards,<br />\\n<br />\\nNathan<br />\\n\",\n      \"send_on_day\": 3\n    },\n    {\n      \"message\": \"Just thought I'd give this one last try :)<br />\\n<br />\\nNathan\\n\",\n      \"send_on_day\": 8\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "name": "Email sequence",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        -560,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Settings').item.json.sheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Settings').item.json.sheet_url }}"
+        },
+        "options": {}
+      },
+      "name": "Get emails",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        -288,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "first-emailed-empty",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.first_emailed.isEmpty() }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "To email?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "message_template",
+              "stringValue": "={{ $('Email sequence').first().json.emails[0].message }}"
+            },
+            {
+              "name": "to_email",
+              "stringValue": "={{ $('Get emails').item.json[$('Settings').item.json.email_column_name] }}"
+            },
+            {
+              "name": "subject",
+              "stringValue": "={{ $('Settings').item.json.subject }}"
+            },
+            {
+              "name": "sender_name",
+              "stringValue": "={{ $('Settings').item.json.sender_name }}"
+            },
+            {
+              "name": "mail_id",
+              "stringValue": "={{ $('Settings').item.json.mail_id }}"
+            },
+            {
+              "name": "mail_seq",
+              "stringValue": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Prepare first message params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        192,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function extractPlaceholders(str) {\n    // Matches {placeholder} tokens (alphanumeric, dash, underscore)\n    const regex = /\\{([a-zA-Z0-9_-]+)\\}/g;\n    const uniquePlaceholders = new Set();\n    let match;\n    while ((match = regex.exec(str)) !== null) {\n        uniquePlaceholders.add(match[1]);\n    }\n    return Array.from(uniquePlaceholders);\n}\n\n// Gather all placeholder values from every template in the sequence\nconst allRaw = $('Email sequence').first().json.emails.flatMap(e => extractPlaceholders(e.message));\nconst all = [...new Set(allRaw)];\nconst placeholders = {};\nfor (const ph of all) {\n  if ($('Get emails').item.json[ph] == undefined) {\n    throw new Error(`Message placeholder '{${ph}}' requires a column called '${ph}' in the Google Sheet`);\n  }\n  placeholders[ph] = $('Get emails').item.json[ph];\n}\n\nitem.json.placeholders = placeholders;\n\nreturn item;"
+      },
+      "name": "Package placeholder values",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $workflow.id }}",
+        "mode": "each",
+        "options": {}
+      },
+      "name": "Call message send sub-workflow1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        720,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Settings').item.json.sheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Settings').item.json.sheet_url }}"
+        },
+        "columns": {
+          "value": {
+            "row_number": "={{ $('To email?').item.json.row_number }}",
+            "first_emailed": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "email",
+              "type": "string",
+              "display": true,
+              "removed": true,
+              "required": false,
+              "displayName": "email",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_emailed",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "first_emailed",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "name",
+              "type": "string",
+              "display": true,
+              "removed": true,
+              "required": false,
+              "displayName": "name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "type": "string",
+              "display": true,
+              "removed": true,
+              "required": false,
+              "displayName": "company",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "row_number",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "readOnly": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "row_number"
+          ]
+        },
+        "options": {}
+      },
+      "name": "Update last contacted time",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "returnAll": true,
+        "filters": {
+          "q": "=subject:\"{{ $json.subject }}\" after:{{ $now.minus({'days': $json.emails.last().send_on_day+1}).toSQL().substr(0, 10) }}"
+        }
+      },
+      "name": "Get previous message threads",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "get",
+        "threadId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "name": "Get thread details",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// TODO: some messages have an empty payload and a `parts` array instead (multipart)\n\nfor (const item of $input.all()) {\n  for (const message of item.json.messages) {\n    const buffer = Buffer.from(message.payload.body.data || \"\", \"base64\");\n    message.html = buffer.toString(\"utf8\");\n  }\n}\n\nreturn $input.all();"
+      },
+      "name": "Decode messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Emails go out slightly after the schedule fires; this buffer stops us waiting an extra day.\nconst buffer_mins = 20;\n\nconst templates = $('Email sequence').first().json.emails;\n\nfunction next_sequence_number(messages, mail_id, sender_name) {\n  for (let i = 0; i < messages.length; i++) {\n    if (!('html' in messages[i])) return -1;\n    const in_campaign = messages[i].html.includes(\"data-cam='\" + mail_id + \"'\");\n    const valid_seq = messages[i].html.includes(\"data-seq='\" + i + \"'\");\n    const from_us = messages[i].From.includes(sender_name);\n    if (!(from_us && in_campaign && valid_seq)) return -1;\n  }\n  return messages.length;\n}\n\nfor (const item of $input.all()) {\n  item.json.first_message_at = DateTime.fromMillis(item.json.messages[0].internalDate * 1);\n  item.json.days_since_first_message = DateTime.now().diff(item.json.first_message_at, 'days').days;\n  item.json.next_sequence_number = next_sequence_number(\n    item.json.messages,\n    $('Settings').first().json.mail_id,\n    $('Settings').first().json.sender_name\n  );\n  item.json.next_message_due = (\n    item.json.next_sequence_number > 0\n    && item.json.next_sequence_number < templates.length\n    && templates[item.json.next_sequence_number].send_on_day <= item.json.days_since_first_message + (buffer_mins / 60 / 24)\n  );\n}\n\nreturn $input.all();"
+      },
+      "name": "Classify threads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "next-due",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.next_message_due }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Next message due?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        608,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "message_template",
+              "stringValue": "={{ $('Email sequence').first().json.emails[$json.next_sequence_number].message }}"
+            },
+            {
+              "name": "reply_message_id",
+              "stringValue": "={{ $json.messages.last().id }}"
+            },
+            {
+              "name": "sender_name",
+              "stringValue": "={{ $('Settings').item.json.sender_name }}"
+            },
+            {
+              "name": "mail_id",
+              "stringValue": "={{ $('Settings').item.json.mail_id }}"
+            },
+            {
+              "name": "mail_seq",
+              "stringValue": "={{ $json.next_sequence_number }}"
+            },
+            {
+              "name": "to",
+              "stringValue": "={{ $json.messages[0].To }}"
+            }
+          ]
+        },
+        "include": "none",
+        "options": {}
+      },
+      "name": "Prepare reply params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        816,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const html = $('Decode messages').item.json.messages[0].html;\nconst matches = html.match(/data-ph='([^']*)'/);\nconst placeholders = {};\nif (matches?.length > 0) {\n  const ph = JSON.parse(matches[1]);\n  for (const k of Object.keys(ph)) {\n    placeholders[k] = ph[k];\n  }\n}\nitem.json.placeholders = placeholders;\n\nreturn item;"
+      },
+      "name": "Decode placeholder values",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $workflow.id }}",
+        "options": {}
+      },
+      "name": "Call message send sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        592
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1136,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "message_template",
+              "stringValue": "={{ $('Email sequence').first().json.emails[0].message }}"
+            },
+            {
+              "name": "email",
+              "stringValue": "user@example.com"
+            },
+            {
+              "name": "name",
+              "stringValue": "Test Name"
+            },
+            {
+              "name": "company",
+              "stringValue": "Test Company"
+            },
+            {
+              "name": "subject",
+              "stringValue": "={{ $('Settings').item.json.subject }}"
+            },
+            {
+              "name": "sender_name",
+              "stringValue": "={{ $('Settings').item.json.sender_name }}"
+            },
+            {
+              "name": "mail_id",
+              "stringValue": "={{ $('Settings').item.json.mail_id }}"
+            },
+            {
+              "name": "mail_seq",
+              "stringValue": "0"
+            }
+          ]
+        },
+        "include": "none",
+        "options": {}
+      },
+      "name": "Set message template",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        -880,
+        1040
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function extractPlaceholders(str) {\n    // Matches {placeholder} tokens (alphanumeric, dash, underscore)\n    const regex = /\\{([a-zA-Z0-9_-]+)\\}/g;\n    const uniquePlaceholders = new Set();\n    let match;\n    while ((match = regex.exec(str)) !== null) {\n        uniquePlaceholders.add(match[1]);\n    }\n    return Array.from(uniquePlaceholders);\n}\n\nconst available = Object.keys(item.json.placeholders);\n\n// Substitute every placeholder in the message template\nitem.json.message = item.json.message_template;\nfor (const key of extractPlaceholders(item.json.message_template)) {\n  if (!available.includes(key)) throw new Error(`Missing data for placeholder '{${key}}'`);\n  const regex = new RegExp(`\\\\{${key}\\\\}`, 'g');\n  item.json.message = item.json.message.replaceAll(regex, item.json.placeholders[key]);\n}\n\nreturn item;"
+      },
+      "name": "Fill message placeholders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1072
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "message",
+              "stringValue": "=<span data-cam='{{ $json.mail_id }}' data-seq='{{ $json.mail_seq }}' data-ph='{{ JSON.stringify($json.placeholders) }}'></span>{{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Compose message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        -224,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "has-reply-id",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.reply_message_id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Replying?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        48,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.reply_message_id }}",
+        "message": "={{ $json.message }}",
+        "options": {
+          "senderName": "={{ $json.sender_name }}"
+        }
+      },
+      "name": "Reply to message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        400,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to_email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $json.sender_name }}"
+        }
+      },
+      "name": "Send new message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        416,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "width": 400,
+        "height": 200,
+        "content": "## Setup\n1. Create a Google Sheet with columns: `email`, `first_emailed` (leave blank), plus one column per `{placeholder}` you use (e.g. `name`, `company`)\n2. Edit the **Settings** node (sheet URL, subject, sender name, unique `mail_id`)\n3. Edit the **Email sequence** node (HTML bodies + `send_on_day`)\n4. Connect your Google Sheets and Gmail credentials, then activate"
+      },
+      "name": "Setup note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 120,
+        "content": "## Send sub-workflow\nCalled by both branches above. Fills placeholders, stamps the hidden tracking span, then replies in-thread or sends a new email."
+      },
+      "name": "Sub-workflow note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1136,
+        800
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Don't email on weekends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Don't email on weekends": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Email sequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email sequence": {
+      "main": [
+        [
+          {
+            "node": "Get previous message threads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get emails": {
+      "main": [
+        [
+          {
+            "node": "To email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To email?": {
+      "main": [
+        [
+          {
+            "node": "Prepare first message params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare first message params": {
+      "main": [
+        [
+          {
+            "node": "Package placeholder values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Package placeholder values": {
+      "main": [
+        [
+          {
+            "node": "Call message send sub-workflow1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call message send sub-workflow1": {
+      "main": [
+        [
+          {
+            "node": "Update last contacted time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get previous message threads": {
+      "main": [
+        [
+          {
+            "node": "Get thread details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get thread details": {
+      "main": [
+        [
+          {
+            "node": "Decode messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decode messages": {
+      "main": [
+        [
+          {
+            "node": "Classify threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify threads": {
+      "main": [
+        [
+          {
+            "node": "Next message due?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next message due?": {
+      "main": [
+        [
+          {
+            "node": "Prepare reply params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare reply params": {
+      "main": [
+        [
+          {
+            "node": "Decode placeholder values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decode placeholder values": {
+      "main": [
+        [
+          {
+            "node": "Call message send sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set message template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set message template": {
+      "main": [
+        [
+          {
+            "node": "Fill message placeholders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill message placeholders": {
+      "main": [
+        [
+          {
+            "node": "Compose message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose message": {
+      "main": [
+        [
+          {
+            "node": "Replying?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replying?": {
+      "main": [
+        [
+          {
+            "node": "Reply to message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send new message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
